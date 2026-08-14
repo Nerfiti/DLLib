@@ -88,7 +88,7 @@ namespace commands
     struct DrawState final
     {
         sf::Color fillColor = sf::Color::Transparent;
-        sf::Color outlineColor = sf::Color::Transparent;
+        sf::Color сolor = sf::Color::Transparent;
         
         float thinkness;
     };
@@ -179,11 +179,11 @@ void setFillColor(sf::Color color)
     });
 }
 
-void setOutlineColor(sf::Color color)
+void setColor(sf::Color color)
 {
     detail::commands::addCommand([=] (detail::commands::DrawState& state)
     {
-        state.outlineColor = color;
+        state.сolor = color;
     });
 }
 
@@ -233,7 +233,7 @@ void drawCircle(int center_x, int center_y, float radius, window_handler_t windo
     {
         sf::CircleShape circle(radius);
         circle.setFillColor(state.fillColor);
-        circle.setOutlineColor(state.outlineColor);
+        circle.setOutlineColor(state.сolor);
         circle.setOutlineThickness(state.thinkness);
 
         circle.setOrigin(sf::Vector2f(radius, radius));
@@ -258,7 +258,7 @@ void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t window_handler
     {
         sf::CircleShape ellipse(height);
         ellipse.setFillColor(state.fillColor);
-        ellipse.setOutlineColor(state.outlineColor);
+        ellipse.setOutlineColor(state.сolor);
         ellipse.setOutlineThickness(state.thinkness);
 
         ellipse.scale(sf::Vector2f(static_cast<float>(width) / height, 1.0f));
@@ -283,7 +283,7 @@ void drawRect(int x0, int y0, int x1, int y1, window_handler_t window_handler = 
     {
         sf::RectangleShape rect(sf::Vector2f(width, height));
         rect.setFillColor(state.fillColor);
-        rect.setOutlineColor(state.outlineColor);
+        rect.setOutlineColor(state.сolor);
         rect.setOutlineThickness(state.thinkness);
 
         rect.setPosition(sf::Vector2f(x0, y0));
@@ -301,7 +301,7 @@ void drawPolygon(sf::Vector2f points[], uint32_t num_points, window_handler_t wi
     detail::commands::addCommand([=] (detail::commands::DrawState& state) mutable
     {
         polygon.setFillColor(state.fillColor);
-        polygon.setOutlineColor(state.outlineColor);
+        polygon.setOutlineColor(state.сolor);
         polygon.setOutlineThickness(state.thinkness);
 
         window_handler->texture.draw(polygon);
