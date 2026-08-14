@@ -91,7 +91,7 @@ namespace commands
         sf::Color outlineColor = sf::Color::Transparent;
         
         float thinkness;
-    } _draw_state;
+    };
 
     using cmd_t = std::function<void(DrawState&)>;
     std::vector<cmd_t> _commands;
