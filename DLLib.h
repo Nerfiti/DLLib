@@ -9,7 +9,7 @@
 #include <thread>
 #include <vector>
 
-#include "SFML/Graphics.hpp"
+#include <SFML/Graphics.hpp>
 
 namespace detail
 {
