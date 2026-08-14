@@ -143,7 +143,6 @@ void display()
     detail::commands::sendCommands();
 }
 
-//TODO: think about packed tasks instead of future-promise obdristanniy
 window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view title = "", sf::State state = sf::State::Windowed)
 {
     auto promise = std::make_shared<std::promise<window_handler_t>>();
@@ -204,6 +203,92 @@ void drawCircle(int center_x, int center_y, float radius, sf::Color color, windo
 
         window_handler->texture.draw(circle);
     });
+}
+
+void drawEllipse(int x0, int y0, int x1, int y1, sf::Color color, window_handler_t window_handler = detail::windows::getLastWindow())
+{
+    if (x1 < x0)
+    {
+        std::swap(x0, x1);
+        std::swap(y0, y1);
+    }
+
+    int64_t width = x1 - x0 + 1;
+    int64_t height = y1 - y0 + 1;
+
+    detail::commands::addCommand([=]
+    {
+        sf::CircleShape ellipse(height);
+        ellipse.setFillColor(color);
+        ellipse.scale(sf::Vector2f(static_cast<float>(width) / height, 1.0f));
+        ellipse.setPosition(sf::Vector2f(x0, y0));
+
+        window_handler->texture.draw(ellipse);
+    });
+}
+
+void drawRect(int x0, int y0, int x1, int y1, sf::Color color, window_handler_t window_handler = detail::windows::getLastWindow())
+{
+    if (x1 < x0)
+    {
+        std::swap(x0, x1);
+        std::swap(y0, y1);
+    }
+
+    int64_t width = x1 - x0 + 1;
+    int64_t height = y1 - y0 + 1;
+
+    detail::commands::addCommand([=]
+    {
+        sf::RectangleShape rect(sf::Vector2f(width, height));
+        rect.setPosition(sf::Vector2f(x0, y0));
+        rect.setFillColor(color);
+
+        window_handler->texture.draw(rect);
+    });
+}
+
+void drawPolygon(sf::Vector2f points[], uint32_t num_points, sf::Color color, window_handler_t window_handler = detail::windows::getLastWindow())
+{
+    sf::ConvexShape polygon(num_points);
+    polygon.setFillColor(color);
+
+    for (size_t i = 0; i < num_points; ++i)
+        polygon.setPoint(i, points[i]);
+
+    detail::commands::addCommand([=]
+    {
+        window_handler->texture.draw(polygon);
+    });
+}
+
+void drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, sf::Color color, window_handler_t window_handler = detail::windows::getLastWindow())
+{
+    constexpr size_t kNumPoints = 3;
+    sf::Vector2f points[kNumPoints] = {sf::Vector2f(x0, y0), sf::Vector2f(x1, y1), sf::Vector2f(x2, y2)};
+
+    drawPolygon(points, kNumPoints, color, window_handler);
+}
+
+//TODO: Ensure that float conversion does not break the operation
+void setPixel(int x, int y, sf::Color color, window_handler_t window_handler = detail::windows::getLastWindow())
+{
+    drawRect(x, y, x, y, color, window_handler);
+}
+
+sf::Color getPixel(int x, int y, window_handler_t window_handler = detail::windows::getLastWindow())
+{
+    auto promise = std::make_shared<std::promise<sf::Color>>();
+    auto future = promise->get_future();
+
+    detail::commands::addCommand([=] () mutable
+    {
+        sf::Color pixel = window_handler->texture.getTexture().copyToImage().getPixel(sf::Vector2u(x, y));
+        promise->set_value(pixel);
+    });
+
+    detail::commands::sendCommands();
+    return future.get();
 }
 
 //---------------------------------------------------------
