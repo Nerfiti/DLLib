@@ -20,3 +20,6 @@ include("cmake/thirdparty.cmake")
 
 
 add_subdirectory(CDLib)
+
+
+add_subdirectory(app)
