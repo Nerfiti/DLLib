@@ -34,4 +34,4 @@ sf::Color getPixel (int x, int y, window_handler_t windowHandler = getLastWindow
 
 
 int _main ();
-#define main () _main ()
+#define main() _main ()
