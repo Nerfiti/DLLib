@@ -1,6 +1,6 @@
 #include "CommandManager.h"
 
-void CommandManager::addCommand(cmd_t&& command)
+void CommandManager::addCommand (cmd_t&& command)
 {
     std::unique_lock lock(commandListMutex_);
 
@@ -9,12 +9,12 @@ void CommandManager::addCommand(cmd_t&& command)
     commands_.emplace_back(std::move(command));
 }
 
-void CommandManager::sendCommands()
+void CommandManager::sendCommands ()
 {
     commandListFull_.store(true);
 }
 
-void CommandManager::executeCommands(DrawState& drawState)
+void CommandManager::executeCommands (DrawState& drawState)
 {
     if (commandListFull_.load() == false)
         return;

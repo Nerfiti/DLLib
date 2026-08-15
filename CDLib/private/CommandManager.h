@@ -22,9 +22,9 @@ public:
 
 public:
 
-    void addCommand(cmd_t&& command);
-    void sendCommands();
-    void executeCommands(DrawState& drawState);
+    void addCommand (cmd_t&& command);
+    void sendCommands ();
+    void executeCommands (DrawState& drawState);
 
 private:
 

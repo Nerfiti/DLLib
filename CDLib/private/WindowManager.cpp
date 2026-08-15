@@ -2,23 +2,23 @@
 
 #include <SFML/Graphics/Sprite.hpp>
 
-WindowContext::WindowContext(uint32_t width, uint32_t height, std::string_view title, sf::State state)
+WindowContext::WindowContext (uint32_t width, uint32_t height, std::string_view title, sf::State state)
     : window(sf::VideoMode({width, height}), std::string(title), state)
     , texture({width, height})
     {}
 
-std::weak_ptr<WindowContext> WindowManager::createWindow(uint32_t width, uint32_t height, std::string_view title, sf::State state)
+std::weak_ptr<WindowContext> WindowManager::createWindow (uint32_t width, uint32_t height, std::string_view title, sf::State state)
 {
     auto ctx = std::make_shared<WindowContext>(width, height, title, state);
     return windowContexts_.emplace_front(std::move(ctx));
 }
 
-std::weak_ptr<WindowContext> WindowManager::getLastWindow()
+std::weak_ptr<WindowContext> WindowManager::getLastWindow ()
 {
     return windowContexts_.front();
 }
 
-void WindowManager::removeClosed()
+void WindowManager::removeClosed ()
 {
     auto it = windowContexts_.begin();
 
@@ -31,7 +31,7 @@ void WindowManager::removeClosed()
     }
 }
 
-void WindowManager::pollEvents()
+void WindowManager::pollEvents ()
 {
     for (auto& windowCtx : windowContexts_)
     {
@@ -41,7 +41,7 @@ void WindowManager::pollEvents()
     }
 }
 
-void WindowManager::displayWindow(std::weak_ptr<WindowContext> windowHandler)
+void WindowManager::displayWindow (std::weak_ptr<WindowContext> windowHandler)
 {
     if (windowHandler.expired())
         return;
@@ -56,13 +56,13 @@ void WindowManager::displayWindow(std::weak_ptr<WindowContext> windowHandler)
     windowCtx->window.display();
 }
 
-void WindowManager::displayWindows()
+void WindowManager::displayWindows ()
 {
     for (auto& windowCtx : windowContexts_)
         displayWindow(windowCtx);
 }
 
-bool WindowManager::hasWindows()
+bool WindowManager::hasWindows ()
 {
     return !windowContexts_.empty();
 }
