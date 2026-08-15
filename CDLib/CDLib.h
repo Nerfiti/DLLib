@@ -18,8 +18,16 @@
 namespace detail
 {
 
-namespace windows
+struct DrawState final
 {
+    sf::Color fillColor = sf::Color::Black;
+    sf::Color color = sf::Color::White;
+    float thickness = 1.f;
+};
+
+class WindowManager final
+{
+  public:
     struct WindowContext final
     {
         sf::RenderWindow window;
@@ -31,28 +39,32 @@ namespace windows
             {}
     };
 
-    std::list<WindowContext> _window_contexts;
-    using window_handler_t = decltype(_window_contexts.begin());
+  private:
+    std::list<WindowContext> windowContexts_;
 
+  public:
+    using window_handler_t = decltype(windowContexts_.begin());
+
+  public:
     window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view title, sf::State state)
     {
-        _window_contexts.emplace_front(width, height, title, state);
-        return _window_contexts.begin();
+        windowContexts_.emplace_front(width, height, title, state);
+        return windowContexts_.begin();
     }
 
     window_handler_t getLastWindow()
     {
-        return _window_contexts.begin();
+        return windowContexts_.begin();
     }
 
     void removeClosed()
     {
-        auto it = _window_contexts.begin();
+        auto it = windowContexts_.begin();
 
-        while (it != _window_contexts.end())
+        while (it != windowContexts_.end())
         {
             if (!it->window.isOpen())
-                it = _window_contexts.erase(it);
+                it = windowContexts_.erase(it);
             else
                 ++it;
         }
@@ -60,100 +72,99 @@ namespace windows
 
     void pollEvents()
     {
-        for (auto& window_ctx : _window_contexts)
+        for (auto& windowCtx : windowContexts_)
         {
-            while (const std::optional event = window_ctx.window.pollEvent())
+            while (const std::optional event = windowCtx.window.pollEvent())
                 if (event->is<sf::Event::Closed>())
-                    window_ctx.window.close();
+                    windowCtx.window.close();
         }
     }
 
-    void displayWindow(WindowContext& window_ctx)
+    void displayWindow(WindowContext& windowCtx)
     {
-        window_ctx.texture.display();
-        sf::Sprite texture_sprite(window_ctx.texture.getTexture());
+        windowCtx.texture.display();
+        sf::Sprite textureSprite(windowCtx.texture.getTexture());
 
-        window_ctx.window.clear(sf::Color::Magenta);
-        window_ctx.window.draw(texture_sprite);
-        window_ctx.window.display();
+        windowCtx.window.clear(sf::Color::Magenta);
+        windowCtx.window.draw(textureSprite);
+        windowCtx.window.display();
     }
 
     void displayWindows()
     {
-        for (auto& window_ctx : _window_contexts)
-            displayWindow(window_ctx);
+        for (auto& windowCtx : windowContexts_)
+            displayWindow(windowCtx);
     }
-}
 
-namespace commands
-{
-    std::thread _user_thread;
-
-    struct DrawState final
+    bool hasWindows()
     {
-        sf::Color fillColor = sf::Color::Black;
-        sf::Color color = sf::Color::White;
+        return !windowContexts_.empty();
+    }
+} g_WindowManager;
 
-        float thickness = 1.f;
-    };
-
+class CommandManager final
+{
+  public:
     using cmd_t = std::function<void(DrawState&)>;
-    std::vector<cmd_t> _commands;
 
-    //TODO: lock-free commands
-    std::atomic<bool> _command_list_full = false;
-    std::mutex _command_list_mutex;
-    std::condition_variable _command_list_ready_to_write;
-
+  public:
     void addCommand(cmd_t&& command)
     {
-        std::unique_lock lock(_command_list_mutex);
+        std::unique_lock lock(commandListMutex_);
 
-        _command_list_ready_to_write.wait(lock, [] { return !_command_list_full; });
+        commandListReadyToWrite_.wait(lock, [this] { return !commandListFull_; });
 
-        _commands.emplace_back(std::move(command));
+        commands_.emplace_back(std::move(command));
     }
 
     void sendCommands()
     {
-        _command_list_full.store(true);
+        commandListFull_.store(true);
     }
 
-    void executeCommands(DrawState& draw_state)
+    void executeCommands(DrawState& drawState)
     {
-        if (_command_list_full.load() == false)
+        if (commandListFull_.load() == false)
             return;
 
         std::vector<cmd_t> cmds;
         {
-            std::lock_guard guard(_command_list_mutex);
-            std::swap(cmds, _commands);
+            std::lock_guard guard(commandListMutex_);
+            std::swap(cmds, commands_);
         }
 
-        _command_list_full.store(false);
-        _command_list_ready_to_write.notify_all();
+        commandListFull_.store(false);
+        commandListReadyToWrite_.notify_all();
         
 
         for (auto& command : cmds)
         {
-            command(draw_state);
+            command(drawState);
         }
     }
-};
+
+  private:
+    std::vector<cmd_t> commands_;
+
+    //TODO: lock-free commands
+    std::atomic<bool> commandListFull_ = false;
+    std::mutex commandListMutex_;
+    std::condition_variable commandListReadyToWrite_;
+} g_CommandManager;
 
 };
 
 //---------------------------------------------------------
 
-using detail::windows::window_handler_t;
+using window_handler_t = detail::WindowManager::window_handler_t;
 
 void display()
 {
-    detail::commands::addCommand([] (detail::commands::DrawState&)
+    detail::g_CommandManager.addCommand([] (detail::DrawState&)
     {
-        detail::windows::displayWindows();
+        detail::g_WindowManager.displayWindows();
     });
-    detail::commands::sendCommands();
+    detail::g_CommandManager.sendCommands();
 }
 
 window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view title = "", sf::State state = sf::State::Windowed)
@@ -161,17 +172,17 @@ window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view 
     auto promise = std::make_shared<std::promise<window_handler_t>>();
     auto future = promise->get_future();
 
-    detail::commands::addCommand([=] (detail::commands::DrawState& draw_state) mutable
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& drawState) mutable
     {
-        window_handler_t wh = detail::windows::createWindow(width, height, title, state);
+        window_handler_t wh = detail::g_WindowManager.createWindow(width, height, title, state);
 
-        wh->texture.clear(draw_state.fillColor);
-        detail::windows::displayWindow(*wh);
+        wh->texture.clear(drawState.fillColor);
+        detail::g_WindowManager.displayWindow(*wh);
 
         promise->set_value(wh);
     });
 
-    detail::commands::sendCommands();
+    detail::g_CommandManager.sendCommands();
     return future.get();
 }
 
@@ -179,7 +190,7 @@ window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view 
 
 void setFillColor(sf::Color color)
 {
-    detail::commands::addCommand([=] (detail::commands::DrawState& state)
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
         state.fillColor = color;
     });
@@ -187,7 +198,7 @@ void setFillColor(sf::Color color)
 
 void setColor(sf::Color color)
 {
-    detail::commands::addCommand([=] (detail::commands::DrawState& state)
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
         state.color = color;
     });
@@ -195,21 +206,21 @@ void setColor(sf::Color color)
 
 void setThinkness(float thickness)
 {
-    detail::commands::addCommand([=] (detail::commands::DrawState& state)
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
         state.thickness = thickness;
     });
 }
 
-void clear(window_handler_t window_handler = detail::windows::getLastWindow())
+void clear(window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
 {
-    detail::commands::addCommand([=] (detail::commands::DrawState& state)
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
-        window_handler->texture.clear(state.fillColor);
+        windowHandler->texture.clear(state.fillColor);
     });
 }
 
-void drawLine(int x0, int y0, int x1, int y1, window_handler_t window_handler = detail::windows::getLastWindow())
+void drawLine(int x0, int y0, int x1, int y1, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
 {
     if (x1 < x0)
     {
@@ -221,7 +232,7 @@ void drawLine(int x0, int y0, int x1, int y1, window_handler_t window_handler = 
     int64_t dy = y1 - y0;
     float len = sqrt(dx * dx + dy * dy);
 
-    detail::commands::addCommand([=] (detail::commands::DrawState& state)
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
         sf::RectangleShape line(sf::Vector2f(len, state.thickness));
         line.setFillColor(state.color);
@@ -229,13 +240,13 @@ void drawLine(int x0, int y0, int x1, int y1, window_handler_t window_handler = 
         line.setPosition(sf::Vector2f(x0, y0));
         line.rotate(sf::radians(std::atan(static_cast<float>(dy)/dx)));
 
-        window_handler->texture.draw(line);
+        windowHandler->texture.draw(line);
     });
 }
 
-void drawCircle(int center_x, int center_y, float radius, window_handler_t window_handler = detail::windows::getLastWindow())
+void drawCircle(int centerX, int centerY, float radius, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
 {
-    detail::commands::addCommand([=] (detail::commands::DrawState& state)
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
         sf::CircleShape circle(radius);
         circle.setFillColor(state.fillColor);
@@ -243,13 +254,13 @@ void drawCircle(int center_x, int center_y, float radius, window_handler_t windo
         circle.setOutlineThickness(state.thickness);
 
         circle.setOrigin(sf::Vector2f(radius, radius));
-        circle.setPosition(sf::Vector2f(center_x, center_y));
+        circle.setPosition(sf::Vector2f(centerX, centerY));
 
-        window_handler->texture.draw(circle);
+        windowHandler->texture.draw(circle);
     });
 }
 
-void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t window_handler = detail::windows::getLastWindow())
+void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
 {
     if (x1 < x0)
     {
@@ -260,7 +271,7 @@ void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t window_handler
     int64_t width = x1 - x0 + 1;
     int64_t height = y1 - y0 + 1;
 
-    detail::commands::addCommand([=] (detail::commands::DrawState& state)
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
         constexpr size_t kNumPoints = 60;
         sf::CircleShape ellipse(height / 2.f, kNumPoints);
@@ -271,11 +282,11 @@ void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t window_handler
         ellipse.scale(sf::Vector2f(static_cast<float>(width) / height, 1.0f));
         ellipse.setPosition(sf::Vector2f(x0, y0));
 
-        window_handler->texture.draw(ellipse);
+        windowHandler->texture.draw(ellipse);
     });
 }
 
-void drawRect(int x0, int y0, int x1, int y1, window_handler_t window_handler = detail::windows::getLastWindow())
+void drawRect(int x0, int y0, int x1, int y1, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
 {
     if (x1 < x0)
     {
@@ -286,7 +297,7 @@ void drawRect(int x0, int y0, int x1, int y1, window_handler_t window_handler = 
     int64_t width = x1 - x0 + 1;
     int64_t height = y1 - y0 + 1;
 
-    detail::commands::addCommand([=] (detail::commands::DrawState& state)
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
         sf::RectangleShape rect(sf::Vector2f(width, height));
         rect.setFillColor(state.fillColor);
@@ -295,52 +306,52 @@ void drawRect(int x0, int y0, int x1, int y1, window_handler_t window_handler = 
 
         rect.setPosition(sf::Vector2f(x0, y0));
 
-        window_handler->texture.draw(rect);
+        windowHandler->texture.draw(rect);
     });
 }
 
-void drawPolygon(sf::Vector2f points[], uint32_t num_points, window_handler_t window_handler = detail::windows::getLastWindow())
+void drawPolygon(sf::Vector2f points[], uint32_t numPoints, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
 {
-    sf::ConvexShape polygon(num_points);
-    for (size_t i = 0; i < num_points; ++i)
+    sf::ConvexShape polygon(numPoints);
+    for (size_t i = 0; i < numPoints; ++i)
         polygon.setPoint(i, points[i]);
 
-    detail::commands::addCommand([=] (detail::commands::DrawState& state) mutable
+    detail::g_CommandManager.addCommand([=] (detail::DrawState& state) mutable
     {
         polygon.setFillColor(state.fillColor);
         polygon.setOutlineColor(state.color);
         polygon.setOutlineThickness(state.thickness);
 
-        window_handler->texture.draw(polygon);
+        windowHandler->texture.draw(polygon);
     });
 }
 
-void drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, window_handler_t window_handler = detail::windows::getLastWindow())
+void drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
 {
     constexpr size_t kNumPoints = 3;
     sf::Vector2f points[kNumPoints] = {sf::Vector2f(x0, y0), sf::Vector2f(x1, y1), sf::Vector2f(x2, y2)};
 
-    drawPolygon(points, kNumPoints, window_handler);
+    drawPolygon(points, kNumPoints, windowHandler);
 }
 
 //TODO: Ensure that float conversion does not break the operation
-void setPixel(int x, int y, window_handler_t window_handler = detail::windows::getLastWindow())
+void setPixel(int x, int y, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
 {
-    drawRect(x, y, x, y, window_handler);
+    drawRect(x, y, x, y, windowHandler);
 }
 
-sf::Color getPixel(int x, int y, window_handler_t window_handler = detail::windows::getLastWindow())
+sf::Color getPixel(int x, int y, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
 {
     auto promise = std::make_shared<std::promise<sf::Color>>();
     auto future = promise->get_future();
 
-    detail::commands::addCommand([=] (detail::commands::DrawState&) mutable
+    detail::g_CommandManager.addCommand([=] (detail::DrawState&) mutable
     {
-        sf::Color pixel = window_handler->texture.getTexture().copyToImage().getPixel(sf::Vector2u(x, y));
+        sf::Color pixel = windowHandler->texture.getTexture().copyToImage().getPixel(sf::Vector2u(x, y));
         promise->set_value(pixel);
     });
 
-    detail::commands::sendCommands();
+    detail::g_CommandManager.sendCommands();
     return future.get();
 }
 
@@ -355,27 +366,27 @@ int main()
 {
     static std::atomic<bool> user_thread_finished = false;
 
-    detail::commands::_user_thread = std::thread([] {
+    std::thread user_thread = std::thread([] {
         command_thread();
         display();
 
         user_thread_finished.store(true);
     });
 
-    detail::commands::DrawState draw_state = {};
+    detail::DrawState drawState = {};
     while(true)
     {
-        if (user_thread_finished && detail::windows::_window_contexts.empty())
+        if (user_thread_finished && !detail::g_WindowManager.hasWindows())
             break;
 
-        detail::windows::removeClosed();
-        detail::windows::pollEvents();
+        detail::g_WindowManager.removeClosed();
+        detail::g_WindowManager.pollEvents();
 
-        detail::commands::executeCommands(draw_state);
+        detail::g_CommandManager.executeCommands(drawState);
     }
 
-    if (detail::commands::_user_thread.joinable())
-        detail::commands::_user_thread.join();
+    if (user_thread.joinable())
+        user_thread.join();
 }
 
 #define main() command_thread()
