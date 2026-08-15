@@ -2,10 +2,11 @@
 
 #include <SFML/Graphics/Sprite.hpp>
 
-WindowContext::WindowContext (uint32_t width, uint32_t height, std::string_view title, sf::State state)
-    : window(sf::VideoMode({width, height}), std::string(title), state)
-    , texture({width, height})
-    {}
+
+WindowContext::WindowContext (uint32_t width, uint32_t height, std::string_view title, sf::State state):
+  window(sf::VideoMode({width, height}), std::string(title), state), 
+  texture({width, height}) 
+{}
 
 std::weak_ptr<WindowContext> WindowManager::createWindow (uint32_t width, uint32_t height, std::string_view title, sf::State state)
 {

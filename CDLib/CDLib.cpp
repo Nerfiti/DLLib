@@ -17,13 +17,13 @@
 #include <thread>
 #include <vector>
 
-struct GlobalContext
+
+static struct GlobalContext
 {
     WindowManager windowManager;
     CommandManager commandManager;
 } g_Ctx;
 
-//---------------------------------------------------------
 
 window_handler_t getLastWindow ()
 {
@@ -263,6 +263,7 @@ sf::Color getPixel (int x, int y, window_handler_t windowHandler)
     g_Ctx.commandManager.sendCommands();
     return future.get();
 }
+
 
 int main ()
 {

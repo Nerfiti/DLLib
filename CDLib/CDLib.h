@@ -1,15 +1,16 @@
 #pragma once
 
+
 #include <cstdint>
 #include <memory>
 #include <string_view>
 
 #include "SFML/Graphics.hpp"
 
+
 struct WindowContext;
 using window_handler_t = std::weak_ptr<WindowContext>;
 
-//---------------------------------------------------------
 
 window_handler_t getLastWindow ();
 
@@ -31,7 +32,6 @@ void drawTriangle (int x0, int y0, int x1, int y1, int x2, int y2, window_handle
 void setPixel (int x, int y, window_handler_t windowHandler = getLastWindow());
 sf::Color getPixel (int x, int y, window_handler_t windowHandler = getLastWindow());
 
-//---------------------------------------------------------
 
 int _main ();
 #define main () _main ()

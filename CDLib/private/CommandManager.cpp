@@ -1,5 +1,6 @@
 #include "CommandManager.h"
 
+
 void CommandManager::addCommand (cmd_t&& command)
 {
     std::unique_lock lock(commandListMutex_);
@@ -27,7 +28,6 @@ void CommandManager::executeCommands (DrawState& drawState)
 
     commandListFull_.store(false);
     commandListReadyToWrite_.notify_all();
-    
 
     for (auto& command : cmds)
     {

@@ -1,9 +1,11 @@
 #pragma once
 
+
 #include <list>
 
 #include <SFML/Graphics/RenderTexture.hpp>
 #include <SFML/Graphics/RenderWindow.hpp>
+
 
 struct WindowContext final
 {
@@ -12,6 +14,7 @@ struct WindowContext final
 
     WindowContext (uint32_t width, uint32_t height, std::string_view title, sf::State state);
 };
+
 
 class WindowManager final
 {
@@ -28,5 +31,4 @@ public:
 private:
     
     std::list<std::shared_ptr<WindowContext>> windowContexts_;
-
 };
