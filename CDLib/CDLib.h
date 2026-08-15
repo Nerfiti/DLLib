@@ -1,3 +1,5 @@
+#pragma once
+
 #include <iostream>
 
 #include <atomic>
@@ -33,10 +35,7 @@ class WindowManager final
         sf::RenderWindow window;
         sf::RenderTexture texture;
 
-        WindowContext(uint32_t width, uint32_t height, std::string_view title, sf::State state)
-            : window(sf::VideoMode({width, height}), std::string(title), state)
-            , texture({width, height})
-            {}
+        WindowContext(uint32_t width, uint32_t height, std::string_view title, sf::State state);
     };
 
   private:
@@ -46,60 +45,14 @@ class WindowManager final
     using window_handler_t = decltype(windowContexts_.begin());
 
   public:
-    window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view title, sf::State state)
-    {
-        windowContexts_.emplace_front(width, height, title, state);
-        return windowContexts_.begin();
-    }
+    window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view title, sf::State state);
+    window_handler_t getLastWindow();
+    void removeClosed();
+    void pollEvents();
+    void displayWindow(WindowContext& windowCtx);
+    void displayWindows();
+    bool hasWindows();
 
-    window_handler_t getLastWindow()
-    {
-        return windowContexts_.begin();
-    }
-
-    void removeClosed()
-    {
-        auto it = windowContexts_.begin();
-
-        while (it != windowContexts_.end())
-        {
-            if (!it->window.isOpen())
-                it = windowContexts_.erase(it);
-            else
-                ++it;
-        }
-    }
-
-    void pollEvents()
-    {
-        for (auto& windowCtx : windowContexts_)
-        {
-            while (const std::optional event = windowCtx.window.pollEvent())
-                if (event->is<sf::Event::Closed>())
-                    windowCtx.window.close();
-        }
-    }
-
-    void displayWindow(WindowContext& windowCtx)
-    {
-        windowCtx.texture.display();
-        sf::Sprite textureSprite(windowCtx.texture.getTexture());
-
-        windowCtx.window.clear(sf::Color::Magenta);
-        windowCtx.window.draw(textureSprite);
-        windowCtx.window.display();
-    }
-
-    void displayWindows()
-    {
-        for (auto& windowCtx : windowContexts_)
-            displayWindow(windowCtx);
-    }
-
-    bool hasWindows()
-    {
-        return !windowContexts_.empty();
-    }
 } g_WindowManager;
 
 class CommandManager final
@@ -108,40 +61,9 @@ class CommandManager final
     using cmd_t = std::function<void(DrawState&)>;
 
   public:
-    void addCommand(cmd_t&& command)
-    {
-        std::unique_lock lock(commandListMutex_);
-
-        commandListReadyToWrite_.wait(lock, [this] { return !commandListFull_; });
-
-        commands_.emplace_back(std::move(command));
-    }
-
-    void sendCommands()
-    {
-        commandListFull_.store(true);
-    }
-
-    void executeCommands(DrawState& drawState)
-    {
-        if (commandListFull_.load() == false)
-            return;
-
-        std::vector<cmd_t> cmds;
-        {
-            std::lock_guard guard(commandListMutex_);
-            std::swap(cmds, commands_);
-        }
-
-        commandListFull_.store(false);
-        commandListReadyToWrite_.notify_all();
-        
-
-        for (auto& command : cmds)
-        {
-            command(drawState);
-        }
-    }
+    void addCommand(cmd_t&& command);
+    void sendCommands();
+    void executeCommands(DrawState& drawState);
 
   private:
     std::vector<cmd_t> commands_;
@@ -158,16 +80,131 @@ class CommandManager final
 
 using window_handler_t = detail::WindowManager::window_handler_t;
 
-void display()
+window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view title = "", sf::State state = sf::State::Windowed);
+void display();
+
+void setFillColor(sf::Color color);
+void setColor(sf::Color color);
+void setThinkness(float thickness);
+
+void clear(window_handler_t windowHandler = detail::g_WindowManager.getLastWindow());
+void drawLine(int x0, int y0, int x1, int y1, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow());
+void drawCircle(int centerX, int centerY, float radius, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow());
+void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow());
+void drawRect(int x0, int y0, int x1, int y1, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow());
+void drawPolygon(sf::Vector2f points[], uint32_t numPoints, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow());
+void drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow());
+
+void setPixel(int x, int y, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow());
+sf::Color getPixel(int x, int y, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow());
+
+//---------------------------------------------------------
+
+namespace detail
 {
-    detail::g_CommandManager.addCommand([] (detail::DrawState&)
-    {
-        detail::g_WindowManager.displayWindows();
-    });
-    detail::g_CommandManager.sendCommands();
+
+WindowManager::WindowContext::WindowContext(uint32_t width, uint32_t height, std::string_view title, sf::State state)
+    : window(sf::VideoMode({width, height}), std::string(title), state)
+    , texture({width, height})
+    {}
+
+WindowManager::window_handler_t WindowManager::createWindow(uint32_t width, uint32_t height, std::string_view title, sf::State state)
+{
+    windowContexts_.emplace_front(width, height, title, state);
+    return windowContexts_.begin();
 }
 
-window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view title = "", sf::State state = sf::State::Windowed)
+WindowManager::window_handler_t WindowManager::getLastWindow()
+{
+    return windowContexts_.begin();
+}
+
+void WindowManager::removeClosed()
+{
+    auto it = windowContexts_.begin();
+
+    while (it != windowContexts_.end())
+    {
+        if (!it->window.isOpen())
+            it = windowContexts_.erase(it);
+        else
+            ++it;
+    }
+}
+
+void WindowManager::pollEvents()
+{
+    for (auto& windowCtx : windowContexts_)
+    {
+        while (const std::optional event = windowCtx.window.pollEvent())
+            if (event->is<sf::Event::Closed>())
+                windowCtx.window.close();
+    }
+}
+
+void WindowManager::displayWindow(WindowContext& windowCtx)
+{
+    windowCtx.texture.display();
+    sf::Sprite textureSprite(windowCtx.texture.getTexture());
+
+    windowCtx.window.clear(sf::Color::Magenta);
+    windowCtx.window.draw(textureSprite);
+    windowCtx.window.display();
+}
+
+void WindowManager::displayWindows()
+{
+    for (auto& windowCtx : windowContexts_)
+        displayWindow(windowCtx);
+}
+
+bool WindowManager::hasWindows()
+{
+    return !windowContexts_.empty();
+}
+
+//---------------------------------------------------------
+
+void CommandManager::addCommand(cmd_t&& command)
+{
+    std::unique_lock lock(commandListMutex_);
+
+    commandListReadyToWrite_.wait(lock, [this] { return !commandListFull_; });
+
+    commands_.emplace_back(std::move(command));
+}
+
+void CommandManager::sendCommands()
+{
+    commandListFull_.store(true);
+}
+
+void CommandManager::executeCommands(DrawState& drawState)
+{
+    if (commandListFull_.load() == false)
+        return;
+
+    std::vector<cmd_t> cmds;
+    {
+        std::lock_guard guard(commandListMutex_);
+        std::swap(cmds, commands_);
+    }
+
+    commandListFull_.store(false);
+    commandListReadyToWrite_.notify_all();
+    
+
+    for (auto& command : cmds)
+    {
+        command(drawState);
+    }
+}
+
+} //namespace detail
+
+//---------------------------------------------------------
+
+window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view title, sf::State state)
 {
     auto promise = std::make_shared<std::promise<window_handler_t>>();
     auto future = promise->get_future();
@@ -186,7 +223,14 @@ window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view 
     return future.get();
 }
 
-//---------------------------------------------------------
+void display()
+{
+    detail::g_CommandManager.addCommand([] (detail::DrawState&)
+    {
+        detail::g_WindowManager.displayWindows();
+    });
+    detail::g_CommandManager.sendCommands();
+}
 
 void setFillColor(sf::Color color)
 {
@@ -212,7 +256,7 @@ void setThinkness(float thickness)
     });
 }
 
-void clear(window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
+void clear(window_handler_t windowHandler)
 {
     detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
@@ -220,7 +264,7 @@ void clear(window_handler_t windowHandler = detail::g_WindowManager.getLastWindo
     });
 }
 
-void drawLine(int x0, int y0, int x1, int y1, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
+void drawLine(int x0, int y0, int x1, int y1, window_handler_t windowHandler)
 {
     if (x1 < x0)
     {
@@ -244,7 +288,7 @@ void drawLine(int x0, int y0, int x1, int y1, window_handler_t windowHandler = d
     });
 }
 
-void drawCircle(int centerX, int centerY, float radius, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
+void drawCircle(int centerX, int centerY, float radius, window_handler_t windowHandler)
 {
     detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
@@ -260,7 +304,7 @@ void drawCircle(int centerX, int centerY, float radius, window_handler_t windowH
     });
 }
 
-void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
+void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t windowHandler)
 {
     if (x1 < x0)
     {
@@ -286,7 +330,7 @@ void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t windowHandler 
     });
 }
 
-void drawRect(int x0, int y0, int x1, int y1, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
+void drawRect(int x0, int y0, int x1, int y1, window_handler_t windowHandler)
 {
     if (x1 < x0)
     {
@@ -310,7 +354,7 @@ void drawRect(int x0, int y0, int x1, int y1, window_handler_t windowHandler = d
     });
 }
 
-void drawPolygon(sf::Vector2f points[], uint32_t numPoints, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
+void drawPolygon(sf::Vector2f points[], uint32_t numPoints, window_handler_t windowHandler)
 {
     sf::ConvexShape polygon(numPoints);
     for (size_t i = 0; i < numPoints; ++i)
@@ -326,7 +370,7 @@ void drawPolygon(sf::Vector2f points[], uint32_t numPoints, window_handler_t win
     });
 }
 
-void drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
+void drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, window_handler_t windowHandler)
 {
     constexpr size_t kNumPoints = 3;
     sf::Vector2f points[kNumPoints] = {sf::Vector2f(x0, y0), sf::Vector2f(x1, y1), sf::Vector2f(x2, y2)};
@@ -335,12 +379,12 @@ void drawTriangle(int x0, int y0, int x1, int y1, int x2, int y2, window_handler
 }
 
 //TODO: Ensure that float conversion does not break the operation
-void setPixel(int x, int y, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
+void setPixel(int x, int y, window_handler_t windowHandler)
 {
     drawRect(x, y, x, y, windowHandler);
 }
 
-sf::Color getPixel(int x, int y, window_handler_t windowHandler = detail::g_WindowManager.getLastWindow())
+sf::Color getPixel(int x, int y, window_handler_t windowHandler)
 {
     auto promise = std::make_shared<std::promise<sf::Color>>();
     auto future = promise->get_future();
@@ -357,11 +401,8 @@ sf::Color getPixel(int x, int y, window_handler_t windowHandler = detail::g_Wind
 
 //---------------------------------------------------------
 
-#define USER_THREAD
-
 int command_thread();
 
-#ifdef USER_THREAD
 int main()
 {
     static std::atomic<bool> user_thread_finished = false;
@@ -390,4 +431,3 @@ int main()
 }
 
 #define main() command_thread()
-#endif
