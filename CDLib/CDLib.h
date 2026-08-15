@@ -1,11 +1,15 @@
 #include <iostream>
 
 #include <atomic>
+#include <cmath>
 #include <condition_variable>
+#include <cstdint>
 #include <functional>
 #include <future>
 #include <list>
 #include <memory>
+#include <string>
+#include <string_view>
 #include <thread>
 #include <vector>
 
@@ -22,7 +26,7 @@ namespace windows
         sf::RenderTexture texture;
 
         WindowContext(uint32_t width, uint32_t height, std::string_view title, sf::State state)
-            : window(sf::VideoMode({width, height}), title, state)
+            : window(sf::VideoMode({width, height}), std::string(title), state)
             , texture({width, height})
             {}
     };
@@ -87,10 +91,10 @@ namespace commands
 
     struct DrawState final
     {
-        sf::Color fillColor = sf::Color::Transparent;
-        sf::Color сolor = sf::Color::Transparent;
-        
-        float thinkness;
+        sf::Color fillColor = sf::Color::Black;
+        sf::Color color = sf::Color::White;
+
+        float thickness = 1.f;
     };
 
     using cmd_t = std::function<void(DrawState&)>;
@@ -157,9 +161,11 @@ window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view 
     auto promise = std::make_shared<std::promise<window_handler_t>>();
     auto future = promise->get_future();
 
-    detail::commands::addCommand([=] (detail::commands::DrawState&) mutable
+    detail::commands::addCommand([=] (detail::commands::DrawState& draw_state) mutable
     {
         window_handler_t wh = detail::windows::createWindow(width, height, title, state);
+
+        wh->texture.clear(draw_state.fillColor);
         detail::windows::displayWindow(*wh);
 
         promise->set_value(wh);
@@ -183,15 +189,15 @@ void setColor(sf::Color color)
 {
     detail::commands::addCommand([=] (detail::commands::DrawState& state)
     {
-        state.сolor = color;
+        state.color = color;
     });
 }
 
-void setThinkness(float thinkness)
+void setThinkness(float thickness)
 {
     detail::commands::addCommand([=] (detail::commands::DrawState& state)
     {
-        state.thinkness = thinkness;
+        state.thickness = thickness;
     });
 }
 
@@ -217,8 +223,8 @@ void drawLine(int x0, int y0, int x1, int y1, window_handler_t window_handler = 
 
     detail::commands::addCommand([=] (detail::commands::DrawState& state)
     {
-        sf::RectangleShape line(sf::Vector2f(len, state.thinkness));
-        line.setFillColor(state.fillColor);
+        sf::RectangleShape line(sf::Vector2f(len, state.thickness));
+        line.setFillColor(state.color);
 
         line.setPosition(sf::Vector2f(x0, y0));
         line.rotate(sf::radians(std::atan(static_cast<float>(dy)/dx)));
@@ -233,8 +239,8 @@ void drawCircle(int center_x, int center_y, float radius, window_handler_t windo
     {
         sf::CircleShape circle(radius);
         circle.setFillColor(state.fillColor);
-        circle.setOutlineColor(state.сolor);
-        circle.setOutlineThickness(state.thinkness);
+        circle.setOutlineColor(state.color);
+        circle.setOutlineThickness(state.thickness);
 
         circle.setOrigin(sf::Vector2f(radius, radius));
         circle.setPosition(sf::Vector2f(center_x, center_y));
@@ -256,10 +262,11 @@ void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t window_handler
 
     detail::commands::addCommand([=] (detail::commands::DrawState& state)
     {
-        sf::CircleShape ellipse(height);
+        constexpr size_t kNumPoints = 60;
+        sf::CircleShape ellipse(height / 2.f, kNumPoints);
         ellipse.setFillColor(state.fillColor);
-        ellipse.setOutlineColor(state.сolor);
-        ellipse.setOutlineThickness(state.thinkness);
+        ellipse.setOutlineColor(state.color);
+        ellipse.setOutlineThickness(state.thickness);
 
         ellipse.scale(sf::Vector2f(static_cast<float>(width) / height, 1.0f));
         ellipse.setPosition(sf::Vector2f(x0, y0));
@@ -283,8 +290,8 @@ void drawRect(int x0, int y0, int x1, int y1, window_handler_t window_handler = 
     {
         sf::RectangleShape rect(sf::Vector2f(width, height));
         rect.setFillColor(state.fillColor);
-        rect.setOutlineColor(state.сolor);
-        rect.setOutlineThickness(state.thinkness);
+        rect.setOutlineColor(state.color);
+        rect.setOutlineThickness(state.thickness);
 
         rect.setPosition(sf::Vector2f(x0, y0));
 
@@ -301,8 +308,8 @@ void drawPolygon(sf::Vector2f points[], uint32_t num_points, window_handler_t wi
     detail::commands::addCommand([=] (detail::commands::DrawState& state) mutable
     {
         polygon.setFillColor(state.fillColor);
-        polygon.setOutlineColor(state.сolor);
-        polygon.setOutlineThickness(state.thinkness);
+        polygon.setOutlineColor(state.color);
+        polygon.setOutlineThickness(state.thickness);
 
         window_handler->texture.draw(polygon);
     });
@@ -350,7 +357,7 @@ int main()
 
     detail::commands::_user_thread = std::thread([] {
         command_thread();
-        detail::commands::sendCommands();
+        display();
 
         user_thread_finished.store(true);
     });
