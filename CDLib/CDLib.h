@@ -29,7 +29,8 @@ struct DrawState final
 
 class WindowManager final
 {
-  public:
+public:
+
     struct WindowContext final
     {
         sf::RenderWindow window;
@@ -38,13 +39,14 @@ class WindowManager final
         WindowContext(uint32_t width, uint32_t height, std::string_view title, sf::State state);
     };
 
-  private:
+private:
+
     std::list<WindowContext> windowContexts_;
 
-  public:
+public:
+
     using window_handler_t = decltype(windowContexts_.begin());
 
-  public:
     window_handler_t createWindow(uint32_t width, uint32_t height, std::string_view title, sf::State state);
     window_handler_t getLastWindow();
     void removeClosed();
@@ -57,15 +59,18 @@ class WindowManager final
 
 class CommandManager final
 {
-  public:
+public:
+
     using cmd_t = std::function<void(DrawState&)>;
 
-  public:
+public:
+
     void addCommand(cmd_t&& command);
     void sendCommands();
     void executeCommands(DrawState& drawState);
 
-  private:
+private:
+
     std::vector<cmd_t> commands_;
 
     //TODO: lock-free commands
@@ -307,23 +312,30 @@ void drawCircle(int centerX, int centerY, float radius, window_handler_t windowH
 void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t windowHandler)
 {
     if (x1 < x0)
-    {
         std::swap(x0, x1);
+    if (y1 < y0)
         std::swap(y0, y1);
-    }
 
     int64_t width = x1 - x0 + 1;
     int64_t height = y1 - y0 + 1;
 
+    float radius = height / 2.f;
+    sf::Vector2f scaleFactor(static_cast<float>(width) / height, 1.f);
+    if (width < height)
+    {
+        radius = height;
+        scaleFactor = sf::Vector2f(1.f, static_cast<float>(height) / width);
+    }
+
     detail::g_CommandManager.addCommand([=] (detail::DrawState& state)
     {
         constexpr size_t kNumPoints = 60;
-        sf::CircleShape ellipse(height / 2.f, kNumPoints);
+        sf::CircleShape ellipse(radius, kNumPoints);
         ellipse.setFillColor(state.fillColor);
         ellipse.setOutlineColor(state.color);
         ellipse.setOutlineThickness(state.thickness);
 
-        ellipse.scale(sf::Vector2f(static_cast<float>(width) / height, 1.0f));
+        ellipse.scale(scaleFactor);
         ellipse.setPosition(sf::Vector2f(x0, y0));
 
         windowHandler->texture.draw(ellipse);
@@ -333,10 +345,9 @@ void drawEllipse(int x0, int y0, int x1, int y1, window_handler_t windowHandler)
 void drawRect(int x0, int y0, int x1, int y1, window_handler_t windowHandler)
 {
     if (x1 < x0)
-    {
         std::swap(x0, x1);
+    if (y1 < y0)
         std::swap(y0, y1);
-    }
 
     int64_t width = x1 - x0 + 1;
     int64_t height = y1 - y0 + 1;
