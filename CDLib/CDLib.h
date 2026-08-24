@@ -35,5 +35,9 @@ void setPixel (int x, int y, window_handler_t windowHandler = getLastWindow());
 sf::Color getPixel (int x, int y, window_handler_t windowHandler = getLastWindow());
 
 
+float getTime ();
+void sleep (float seconds);
+
+
 int _main ();
 #define main() _main ()

@@ -1,4 +1,5 @@
 #include "CDLib.h"
+#include <SFML/System/Clock.hpp>
 #undef main
 
 #include "SFML/Graphics.hpp"
@@ -261,6 +262,16 @@ sf::Color getPixel (int x, int y, window_handler_t windowHandler)
     return future.get();
 }
 
+float getTime()
+{
+    static sf::Clock clock;
+    return clock.getElapsedTime().asSeconds();
+}
+
+void sleep (float seconds)
+{
+    std::this_thread::sleep_for(std::chrono::duration<float>(seconds));
+}
 
 int main ()
 {
