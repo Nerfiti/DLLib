@@ -1,21 +1,18 @@
 #include "CDLib.h"
 #undef main
 
+#include "SFML/Graphics.hpp"
+
 #include "private/CommandManager.h"
 #include "private/WindowManager.h"
 
 #include <atomic>
 #include <cmath>
-#include <condition_variable>
 #include <cstdint>
-#include <functional>
 #include <future>
-#include <list>
 #include <memory>
-#include <string>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 
 static struct GlobalContext

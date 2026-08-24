@@ -5,7 +5,9 @@
 #include <memory>
 #include <string_view>
 
-#include "SFML/Graphics.hpp"
+#include "SFML/Graphics/Color.hpp"
+#include "SFML/System/Vector2.hpp"
+#include "SFML/Window/WindowEnums.hpp"
 
 
 struct WindowContext;
