@@ -5,7 +5,9 @@
 #include <memory>
 #include <string_view>
 
-#include "SFML/Graphics.hpp"
+#include "SFML/Graphics/Color.hpp"
+#include "SFML/System/Vector2.hpp"
+#include "SFML/Window/WindowEnums.hpp"
 
 
 struct WindowContext;
@@ -31,6 +33,10 @@ void drawTriangle (int x0, int y0, int x1, int y1, int x2, int y2, window_handle
 
 void setPixel (int x, int y, window_handler_t windowHandler = getLastWindow());
 sf::Color getPixel (int x, int y, window_handler_t windowHandler = getLastWindow());
+
+
+float getTime ();
+void sleep (float seconds);
 
 
 int _main ();

@@ -1,21 +1,19 @@
 #include "CDLib.h"
+#include <SFML/System/Clock.hpp>
 #undef main
+
+#include "SFML/Graphics.hpp"
 
 #include "private/CommandManager.h"
 #include "private/WindowManager.h"
 
 #include <atomic>
 #include <cmath>
-#include <condition_variable>
 #include <cstdint>
-#include <functional>
 #include <future>
-#include <list>
 #include <memory>
-#include <string>
 #include <string_view>
 #include <thread>
-#include <vector>
 
 
 static struct GlobalContext
@@ -264,6 +262,16 @@ sf::Color getPixel (int x, int y, window_handler_t windowHandler)
     return future.get();
 }
 
+float getTime()
+{
+    static sf::Clock clock;
+    return clock.getElapsedTime().asSeconds();
+}
+
+void sleep (float seconds)
+{
+    std::this_thread::sleep_for(std::chrono::duration<float>(seconds));
+}
 
 int main ()
 {
