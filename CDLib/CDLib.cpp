@@ -24,29 +24,29 @@ static struct GlobalContext
     CommandManager commandManager;
 } g_Ctx;
 
-
-window_handler_t getLastWindow ()
+WindowHandler getLastWindow ()
 {
-    return g_Ctx.windowManager.getLastWindow();
+    return WindowHandler(g_Ctx.windowManager.getLastWindow());
 }
 
-window_handler_t createWindow (uint32_t width, uint32_t height, std::string_view title, sf::State state)
+WindowHandler createWindow (uint32_t width, uint32_t height, std::string_view title, sf::State state)
 {
-    auto promise = std::make_shared<std::promise<window_handler_t>>();
+    auto promise = std::make_shared<std::promise<WindowManager::WindowHandler>>();
     auto future = promise->get_future();
 
     g_Ctx.commandManager.addCommand([=] (DrawState& drawState) mutable
     {
-        auto wh = g_Ctx.windowManager.createWindow(width, height, title, state).lock();
+        auto windowHandler = g_Ctx.windowManager.createWindow(width, height, title, state);
 
-        wh->texture.clear(drawState.fillColor);
-        g_Ctx.windowManager.displayWindow(wh);
+        auto& window = g_Ctx.windowManager.getWindow(windowHandler);
+        window.sfTexture.clear(drawState.fillColor);
+        g_Ctx.windowManager.displayWindow(windowHandler);
 
-        promise->set_value(wh);
+        promise->set_value(windowHandler);
     });
 
     g_Ctx.commandManager.sendCommands();
-    return future.get();
+    return WindowHandler(future.get());
 }
 
 void display ()
@@ -82,27 +82,21 @@ void setThinkness (float thickness)
     });
 }
 
-void clear (window_handler_t windowHandler)
+void clear (WindowHandler windowHandler)
 {
     g_Ctx.commandManager.addCommand([=] (DrawState& state)
     {
-        if (windowHandler.expired())
-            return;
+        auto& window = g_Ctx.windowManager.getWindow(windowHandler);
 
-        auto windowCtx = windowHandler.lock();
-        
-        windowCtx->texture.clear(state.fillColor);
+        window.sfTexture.clear(state.fillColor);
     });
 }
 
-void drawLine (int x0, int y0, int x1, int y1, window_handler_t windowHandler)
+void drawLine (int x0, int y0, int x1, int y1, WindowHandler windowHandler)
 {
     g_Ctx.commandManager.addCommand([=] (DrawState& state) mutable
     {
-        if (windowHandler.expired())
-            return;
-
-        auto windowCtx = windowHandler.lock();
+        auto& window = g_Ctx.windowManager.getWindow(windowHandler);
 
         if (x1 < x0)
         {
@@ -120,18 +114,15 @@ void drawLine (int x0, int y0, int x1, int y1, window_handler_t windowHandler)
         line.setPosition(sf::Vector2f(x0, y0));
         line.rotate(sf::radians(std::atan(static_cast<float>(dy)/dx)));
 
-        windowCtx->texture.draw(line);
+        window.sfTexture.draw(line);
     });
 }
 
-void drawCircle (int centerX, int centerY, float radius, window_handler_t windowHandler)
+void drawCircle (int centerX, int centerY, float radius, WindowHandler windowHandler)
 {
     g_Ctx.commandManager.addCommand([=] (DrawState& state)
     {
-        if (windowHandler.expired())
-            return;
-
-        auto windowCtx = windowHandler.lock();
+        auto& window = g_Ctx.windowManager.getWindow(windowHandler);
 
         sf::CircleShape circle(radius);
         circle.setFillColor(state.fillColor);
@@ -141,18 +132,15 @@ void drawCircle (int centerX, int centerY, float radius, window_handler_t window
         circle.setOrigin(sf::Vector2f(radius, radius));
         circle.setPosition(sf::Vector2f(centerX, centerY));
 
-        windowCtx->texture.draw(circle);
+        window.sfTexture.draw(circle);
     });
 }
 
-void drawEllipse (int x0, int y0, int x1, int y1, window_handler_t windowHandler)
+void drawEllipse (int x0, int y0, int x1, int y1, WindowHandler windowHandler)
 {
     g_Ctx.commandManager.addCommand([=] (DrawState& state) mutable
     {
-        if (windowHandler.expired())
-            return;
-
-        auto windowCtx = windowHandler.lock();
+        auto& window = g_Ctx.windowManager.getWindow(windowHandler);
 
         if (x1 < x0)
             std::swap(x0, x1);
@@ -178,18 +166,15 @@ void drawEllipse (int x0, int y0, int x1, int y1, window_handler_t windowHandler
         ellipse.scale(scaleFactor);
         ellipse.setPosition(sf::Vector2f(x0, y0));
 
-        windowCtx->texture.draw(ellipse);
+        window.sfTexture.draw(ellipse);
     });
 }
 
-void drawRect (int x0, int y0, int x1, int y1, window_handler_t windowHandler)
+void drawRect (int x0, int y0, int x1, int y1, WindowHandler windowHandler)
 {
     g_Ctx.commandManager.addCommand([=] (DrawState& state) mutable
     {
-        if (windowHandler.expired())
-            return;
-
-        auto windowCtx = windowHandler.lock();
+        auto& window = g_Ctx.windowManager.getWindow(windowHandler);
 
         if (x1 < x0)
             std::swap(x0, x1);
@@ -206,11 +191,11 @@ void drawRect (int x0, int y0, int x1, int y1, window_handler_t windowHandler)
 
         rect.setPosition(sf::Vector2f(x0, y0));
 
-        windowCtx->texture.draw(rect);
+        window.sfTexture.draw(rect);
     });
 }
 
-void drawPolygon (sf::Vector2f points[], uint32_t numPoints, window_handler_t windowHandler)
+void drawPolygon (sf::Vector2f points[], uint32_t numPoints, WindowHandler windowHandler)
 {
     sf::ConvexShape polygon(numPoints);
     for (size_t i = 0; i < numPoints; ++i)
@@ -218,20 +203,17 @@ void drawPolygon (sf::Vector2f points[], uint32_t numPoints, window_handler_t wi
 
     g_Ctx.commandManager.addCommand([=] (DrawState& state) mutable
     {
-        if (windowHandler.expired())
-            return;
-
-        auto windowCtx = windowHandler.lock();
+        auto& window = g_Ctx.windowManager.getWindow(windowHandler);
 
         polygon.setFillColor(state.fillColor);
         polygon.setOutlineColor(state.color);
         polygon.setOutlineThickness(state.thickness);
 
-        windowCtx->texture.draw(polygon);
+        window.sfTexture.draw(polygon);
     });
 }
 
-void drawTriangle (int x0, int y0, int x1, int y1, int x2, int y2, window_handler_t windowHandler)
+void drawTriangle (int x0, int y0, int x1, int y1, int x2, int y2, WindowHandler windowHandler)
 {
     constexpr size_t kNumPoints = 3;
     sf::Vector2f points[kNumPoints] = {sf::Vector2f(x0, y0), sf::Vector2f(x1, y1), sf::Vector2f(x2, y2)};
@@ -239,24 +221,21 @@ void drawTriangle (int x0, int y0, int x1, int y1, int x2, int y2, window_handle
     drawPolygon(points, kNumPoints, windowHandler);
 }
 
-void setPixel(int x, int y, window_handler_t windowHandler)
+void setPixel(int x, int y, WindowHandler windowHandler)
 {
     drawRect(x, y, x, y, windowHandler);
 }
 
-sf::Color getPixel (int x, int y, window_handler_t windowHandler)
+sf::Color getPixel (int x, int y, WindowHandler windowHandler)
 {
     auto promise = std::make_shared<std::promise<sf::Color>>();
     auto future = promise->get_future();
 
     g_Ctx.commandManager.addCommand([=] (DrawState&) mutable
     {
-        if (windowHandler.expired())
-            return;
+        auto& window = g_Ctx.windowManager.getWindow(windowHandler);
 
-        auto windowCtx = windowHandler.lock();
-
-        sf::Color pixel = windowCtx->texture.getTexture().copyToImage().getPixel(sf::Vector2u(x, y));
+        sf::Color pixel = window.sfTexture.getTexture().copyToImage().getPixel(sf::Vector2u(x, y));
         promise->set_value(pixel);
     });
 
