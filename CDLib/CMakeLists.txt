@@ -2,6 +2,7 @@ add_library(CDLib STATIC
     CDLib.cpp
     private/CommandManager.cpp
     private/WindowManager.cpp
+    private/utils/IdGenerator.cpp
 )
 
 target_include_directories(CDLib PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
